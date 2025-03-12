@@ -91,13 +91,25 @@ public class WindowsProcess extends PidProcess {
     }
     catch (Exception e) {
       log.warn("Cannot get process status by WMIC:{}", e.toString());
-      out = new ProcessExecutor()
-          .commandSplit(String.format("powershell.exe Get-Process -Id %d ", pid))
-          .readOutput(true)
-          .redirectOutput(Slf4jStream.ofCaller().asTrace())
-          .setMessageLogger(MessageLoggers.TRACE)
-          .exitValueNormal()
-          .executeNoTimeout().outputString();
+      try {
+        out = new ProcessExecutor()
+            .commandSplit(String.format("powershell.exe Get-Process -Id %d ", pid))
+            .readOutput(true)
+            .redirectOutput(Slf4jStream.ofCaller().asTrace())
+            .setMessageLogger(MessageLoggers.TRACE)
+            .exitValueNormal()
+            .executeNoTimeout().outputString();
+      }
+      catch (InvalidExitValueException ex) {
+        String errOut = ex.getResult() != null ? ex.getResult().outputUTF8() : null;
+
+        if (errOut != null && errOut.contains("NoProcessFoundForGivenId")) {
+          return false;
+        }
+        else {
+          throw ex;
+        }
+      }
     }
     return out.contains(String.valueOf(pid));
   }
