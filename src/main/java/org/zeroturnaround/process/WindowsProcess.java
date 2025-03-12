@@ -3,6 +3,8 @@ package org.zeroturnaround.process;
 import java.io.File;
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.zeroturnaround.exec.InvalidExitValueException;
 import org.zeroturnaround.exec.MessageLoggers;
 import org.zeroturnaround.exec.ProcessExecutor;
@@ -21,6 +23,8 @@ import org.zeroturnaround.process.win.WmicUtil;
  * </p>
  */
 public class WindowsProcess extends PidProcess {
+
+  private static final Logger log = LoggerFactory.getLogger(WindowsProcess.class);
 
   private static final int EXIT_CODE_COULD_NOT_BE_TERMINATED = 1;
 
@@ -75,13 +79,26 @@ public class WindowsProcess extends PidProcess {
   }
 
   public boolean isAlive() throws IOException, InterruptedException {
-    String out = new ProcessExecutor()
-        .commandSplit(String.format("%s process where ProcessId=%d get ProcessId", wmicPath, pid))
-        .readOutput(true)
-        .redirectOutput(Slf4jStream.ofCaller().asTrace())
-        .setMessageLogger(MessageLoggers.TRACE)
-        .exitValueNormal()
-        .executeNoTimeout().outputString();
+    String out;
+    try {
+      out = new ProcessExecutor()
+          .commandSplit(String.format("%s process where ProcessId=%d get ProcessId", wmicPath, pid))
+          .readOutput(true)
+          .redirectOutput(Slf4jStream.ofCaller().asTrace())
+          .setMessageLogger(MessageLoggers.TRACE)
+          .exitValueNormal()
+          .executeNoTimeout().outputString();
+    }
+    catch (Exception e) {
+      log.warn("Cannot get process status by WMIC:{}", e.toString());
+      out = new ProcessExecutor()
+          .commandSplit(String.format("powershell.exe Get-Process -Id %d ", pid))
+          .readOutput(true)
+          .redirectOutput(Slf4jStream.ofCaller().asTrace())
+          .setMessageLogger(MessageLoggers.TRACE)
+          .exitValueNormal()
+          .executeNoTimeout().outputString();
+    }
     return out.contains(String.valueOf(pid));
   }
 
